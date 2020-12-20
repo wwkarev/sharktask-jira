@@ -1,0 +1,3 @@
+[submodule "submodules/sharktask-api"]
+	path = submodules/sharktask-api
+	url = https://github.com/wwkarev/sharktask-api.git
