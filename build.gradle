@@ -1,0 +1,19 @@
+plugins {
+    id 'groovy'
+    id 'war'
+}
+
+group 'com.github.wwkarev'
+version '1.0-SNAPSHOT'
+
+repositories {
+    mavenLocal()
+    maven { url "https://packages.atlassian.com/maven-external/"}
+}
+
+dependencies {
+    compile 'org.codehaus.groovy:groovy-all:2.5.13'
+    testCompile group: 'org.spockframework', name: 'spock-core', version: '2.0-M4-groovy-2.5'
+
+    providedCompile group: 'com.atlassian.jira', name: 'jira-api', version: '8.13.1'
+}
