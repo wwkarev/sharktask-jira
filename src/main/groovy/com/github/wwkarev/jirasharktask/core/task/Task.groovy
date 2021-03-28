@@ -1,105 +1,111 @@
 package com.github.wwkarev.jirasharktask.core.task
 
 import com.atlassian.jira.component.ComponentAccessor
-import com.atlassian.jira.issue.Issue
+import com.atlassian.jira.issue.MutableIssue as Jira_MutableIssue
+import com.atlassian.jira.issue.fields.CustomField as JIRA_CustomField
 import com.atlassian.jira.issue.link.IssueLink
 
 import com.github.wwkarev.jirasharktask.core.attachment.Attachment
 import com.github.wwkarev.jirasharktask.core.comment.Comment
+import com.github.wwkarev.jirasharktask.core.field.FC
+import com.github.wwkarev.jirasharktask.core.field.FieldManager
 import com.github.wwkarev.jirasharktask.core.status.Status
 import com.github.wwkarev.jirasharktask.core.tasktype.TaskType
 import com.github.wwkarev.jirasharktask.core.user.User
-import com.github.wwkarev.sharktask.api.attachment.Attachment as API_Attachment
-import com.github.wwkarev.sharktask.api.comment.Comment as API_Comment
-import com.github.wwkarev.sharktask.api.project.Project as API_Project
 import com.github.wwkarev.sharktask.api.task.Task as API_Task
-import com.github.wwkarev.sharktask.api.tasktype.TaskType as API_TaskType
-import com.github.wwkarev.sharktask.api.status.Status as API_Status
-import com.github.wwkarev.sharktask.api.user.User as API_User
 
 import com.github.wwkarev.jirasharktask.core.project.Project
 
-trait Task implements API_Task {
+abstract class Task implements API_Task {
+    protected Jira_MutableIssue jiraIssue
+    protected FieldManager fieldManager
+    protected FC fieldConstants
+
+    Task(Jira_MutableIssue jiraIssue, FieldManager fieldManager) {
+        this.jiraIssue = jiraIssue
+        this.fieldManager = fieldManager
+        this.fieldConstants = fieldManager.getFieldConstants()
+    }
+
     @Override
     Long getId() {
-        return getIssue().getId()
+        return jiraIssue.getId()
     }
 
     @Override
     String getKey() {
-        return getIssue().getKey()
+        return jiraIssue.getKey()
     }
 
     @Override
-    API_Project getProject() {
-        return new Project(getIssue().getProjectObject())
+    Project getProject() {
+        return new Project(jiraIssue.getProjectObject())
     }
 
     @Override
-    API_TaskType getTaskType() {
-        return new TaskType(getIssue().getIssueType())
+    TaskType getTaskType() {
+        return new TaskType(jiraIssue.getIssueType())
     }
 
     @Override
-    API_Status getStatus() {
-        return new Status(getIssue().getStatus())
+    Status getStatus() {
+        return new Status(jiraIssue.getStatus())
     }
 
     @Override
     String getSummary() {
-        return getIssue().getSummary()
+        return jiraIssue.getSummary()
     }
 
     @Override
-    API_User getCreator() {
-        return new User(getIssue().getReporter())
+    User getCreator() {
+        return jiraIssue.getReporter() ? new User(jiraIssue.getReporter()) : null
     }
 
     @Override
-    API_User getAssignee() {
-        return new User(getIssue().getAssignee())
+    User getAssignee() {
+        return jiraIssue.getAssignee() ? new User(jiraIssue.getAssignee()) : null
     }
 
     @Override
     Date getCreatedDate() {
-        return getIssue().getCreated()
+        return jiraIssue.getCreated()
     }
 
     @Override
     Object getFieldValue(Long fieldId) {
-        def customField = ComponentAccessor.getCustomFieldManager().getCustomFieldObject(fieldId)
-        return issue.getCustomFieldValue(customField)
-    }
-
-    @Override
-    List<Long> getInwardLinkedTaskId(Long linkTypeId) {
-        return ComponentAccessor.getIssueLinkManager().getInwardLinks(getIssue().getId())
-                .findAll{IssueLink issueLink ->
-                    return issueLink.getLinkTypeId() == linkTypeId
-                }.collect{IssueLink issueLink ->
-            return issueLink.getSourceId()
+        Object value
+        switch (fieldId) {
+            case fieldConstants.getCreator():
+                value = getCreator()
+                break
+            case fieldConstants.getAssignee():
+                value = getAssignee()
+                break
+            case fieldConstants.getSummary():
+                value = getSummary()
+                break
+            case fieldConstants.getDescription():
+                value = jiraIssue.getDescription()
+                break
+            default:
+                JIRA_CustomField customField = ComponentAccessor.getCustomFieldManager().getCustomFieldObject(fieldId)
+                value = jiraIssue.getCustomFieldValue(customField)
         }
+        return value
     }
 
     @Override
-    List<Long> getOutwardLinkedTaskId(Long linkTypeId) {
-        return ComponentAccessor.getIssueLinkManager().getOutwardLinks(getIssue().getId())
-                .findAll{IssueLink issueLink ->
-                    return issueLink.getLinkTypeId() == linkTypeId
-                }.collect{IssueLink issueLink ->
-            return issueLink.getDestinationId()
-        }
+    List<Attachment> getAttachments() {
+        return ComponentAccessor.getAttachmentManager().getAttachments(jiraIssue).collect{new Attachment(it)}
     }
 
     @Override
-    List<API_Attachment> getAttachments() {
-        return ComponentAccessor.getAttachmentManager().getAttachments(getIssue()).collect{new Attachment(it)}
+    List<Comment> getComments() {
+        return ComponentAccessor.getCommentManager().getComments(jiraIssue).collect{new Comment(it)}
     }
 
-    @Override
-    List<API_Comment> getComments() {
-        return ComponentAccessor.getCommentManager().getComments(getIssue()).collect{new Comment(it)}
+    Jira_MutableIssue getIssue() {
+        return jiraIssue
     }
-
-    abstract Issue getIssue()
 }

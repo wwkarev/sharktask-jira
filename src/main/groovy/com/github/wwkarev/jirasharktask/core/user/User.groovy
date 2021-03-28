@@ -1,42 +1,42 @@
 package com.github.wwkarev.jirasharktask.core.user
 
-import com.atlassian.jira.user.ApplicationUser
+
 import com.github.wwkarev.sharktask.api.user.User as API_User
-import com.atlassian.jira.user.ApplicationUser as Atl_User
+import com.atlassian.jira.user.ApplicationUser as Jira_User
 
 class User implements API_User {
-    private Atl_User user
+    private Jira_User jiraUser
 
-    User(Atl_User user) {
-        this.user = user
+    User(Jira_User jiraUser) {
+        this.jiraUser = jiraUser
     }
 
     @Override
     Long getId() {
-        return user.getId()
+        return jiraUser.getId()
     }
 
     @Override
     String getKey() {
-        return user.getKey()
+        return jiraUser.getKey()
     }
 
     @Override
     String getFirstName() {
-        return user.getName()
+        return jiraUser.getName()
     }
 
     @Override
     String getLastName() {
-        return user.getName()
+        return jiraUser.getName()
     }
 
     @Override
     String getFullName() {
-        return user.getDisplayName()
+        return jiraUser.getDisplayName()
     }
 
-    ApplicationUser getUser() {
-        return user
+    Jira_User getUser() {
+        return jiraUser
     }
 }

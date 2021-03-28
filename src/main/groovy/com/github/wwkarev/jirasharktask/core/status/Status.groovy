@@ -1,22 +1,26 @@
 package com.github.wwkarev.jirasharktask.core.status
 
 import com.github.wwkarev.sharktask.api.status.Status as API_Status
-import com.atlassian.jira.issue.status.Status as Atl_Status
+import com.atlassian.jira.issue.status.Status as Jira_Status
 
 class Status implements API_Status {
-    private Atl_Status status
+    private Jira_Status jiraStatus
 
-    Status(com.atlassian.jira.issue.status.Status status) {
-        this.status = status
+    Status(Jira_Status jiraStatus) {
+        this.jiraStatus = jiraStatus
     }
 
     @Override
     Long getId() {
-        return status.getId()
+        return jiraStatus.getId().toLong()
     }
 
     @Override
     String getName() {
-        return status.getName()
+        return jiraStatus.getName()
+    }
+
+   Jira_Status getJiraStatus() {
+        return jiraStatus
     }
 }

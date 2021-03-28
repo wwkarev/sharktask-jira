@@ -1,19 +1,29 @@
 plugins {
     id 'groovy'
-    id 'war'
 }
 
 group 'com.github.wwkarev'
 version '1.0-SNAPSHOT'
 
+sourceSets {
+    test {
+        groovy {
+            exclude '*'
+        }
+    }
+}
+
 repositories {
     mavenLocal()
     maven { url "https://packages.atlassian.com/maven-external/"}
+    maven { url "https://nexus.adaptavist.com/content/repositories/external/"}
 }
 
 dependencies {
+    compile fileTree(dir: 'libs/sharktask-api', include: ['*.jar'])
     compile 'org.codehaus.groovy:groovy-all:2.5.13'
     testCompile group: 'org.spockframework', name: 'spock-core', version: '2.0-M4-groovy-2.5'
 
-    providedCompile group: 'com.atlassian.jira', name: 'jira-api', version: '8.13.1'
+    compileOnly group: 'com.atlassian.jira', name: 'jira-api', version: '8.13.1'
+    compileOnly group: 'com.onresolve.jira.groovy', name: 'groovyrunner', version: '6.14.0'
 }

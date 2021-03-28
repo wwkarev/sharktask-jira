@@ -2,28 +2,75 @@ package com.github.wwkarev.jirasharktask.core.task
 
 import com.atlassian.jira.bc.issue.IssueService
 import com.atlassian.jira.component.ComponentAccessor
-import com.atlassian.jira.event.type.EventDispatchOption as Atl_EventDispatchOption
-import com.atlassian.jira.issue.MutableIssue as Atl_MutableIssue
+import com.atlassian.jira.event.type.EventDispatchOption as Jira_EventDispatchOption
+import com.atlassian.jira.issue.AttachmentManager
+import com.atlassian.jira.issue.MutableIssue
+import com.atlassian.jira.issue.comments.CommentManager
+import com.atlassian.jira.issue.fields.CustomField as JIRA_CustomField
+import com.atlassian.jira.issue.MutableIssue as Jira_MutableIssue
 import com.atlassian.jira.issue.attachment.CreateAttachmentParamsBean
+import com.atlassian.jira.issue.fields.config.FieldConfig
+import com.atlassian.jira.issue.link.IssueLink
 import com.atlassian.jira.issue.link.IssueLinkManager
 import com.atlassian.jira.user.ApplicationUser
 import com.github.wwkarev.jirasharktask.core.exception.DeleteTaskException
 import com.github.wwkarev.jirasharktask.core.exception.TransitionException
+import com.github.wwkarev.jirasharktask.core.field.CustomField
+import com.github.wwkarev.jirasharktask.core.field.FC
+import com.github.wwkarev.jirasharktask.core.field.Field
+import com.github.wwkarev.jirasharktask.core.field.FieldManager
 import com.github.wwkarev.jirasharktask.core.user.User
 import com.github.wwkarev.sharktask.api.eventdispatchoption.EventDispatchOption
 import com.github.wwkarev.sharktask.api.task.MutableTask as API_MutableTask
 import com.github.wwkarev.sharktask.api.user.User as API_User
 
-trait MutableTask implements Task, API_MutableTask {
-    abstract Atl_MutableIssue getIssue()
+class MutableTask extends Task implements API_MutableTask {
+    MutableTask(Jira_MutableIssue jiraIssue, FieldManager fieldManager) {
+        super(jiraIssue, fieldManager)
+    }
 
     @Override
-    void updateValue(Long fieldId, Object value, API_User user, EventDispatchOption eventDispatchOption = EventDispatchOption.DO_NOT_DISPATCH) {
-        Atl_EventDispatchOption atl_eventDispatchOption = eventDispatchOption == EventDispatchOption.UPDATE
-                ? Atl_EventDispatchOption.ISSUE_UPDATED
-                : Atl_EventDispatchOption.DO_NOT_DISPATCH
-        getIssue().setCustomFieldValue(fieldId, value)
-        ComponentAccessor.getIssueManager().updateIssue(getApplicationUser(user), getIssue(), atl_eventDispatchOption, false)
+    void updateFieldValue(Long fieldId, Object value, API_User user, EventDispatchOption eventDispatchOption = EventDispatchOption.DO_NOT_DISPATCH) {
+        switch (fieldId) {
+            case fieldConstants.getCreator():
+                updateCreator(value, user, eventDispatchOption)
+                break
+            case fieldConstants.getAssignee():
+                updateAssignee(value, user, eventDispatchOption)
+                break
+            case fieldConstants.getSummary():
+                updateSummary(value, user, eventDispatchOption)
+                break
+            case fieldConstants.getDescription():
+                updateDescription(value, user, eventDispatchOption)
+                break
+            default:
+                updateCustomField(fieldId, value, user, eventDispatchOption)
+        }
+    }
+
+    @Override
+    List<MutableTask> getInwardLinkedTaskId(Long linkTypeId) {
+        return ComponentAccessor.getIssueLinkManager().getInwardLinks(jiraIssue.getId())
+                .findAll{ IssueLink issueLink ->
+                    return issueLink.getLinkTypeId() == linkTypeId
+                }.collect{IssueLink issueLink ->
+            return issueLink.getSourceObject()
+        }.collect{MutableIssue linkedIssue ->
+            return new MutableTask(linkedIssue, fieldManager)
+        }
+    }
+
+    @Override
+    List<MutableTask> getOutwardLinkedTaskId(Long linkTypeId) {
+        return ComponentAccessor.getIssueLinkManager().getOutwardLinks(jiraIssue.getId())
+                .findAll{IssueLink issueLink ->
+                    return issueLink.getLinkTypeId() == linkTypeId
+                }.collect{IssueLink issueLink ->
+            return issueLink.getDestinationObject()
+        }.collect{MutableIssue linkedIssue ->
+            return new MutableTask(linkedIssue, fieldManager)
+        }
     }
 
     @Override
@@ -81,9 +128,22 @@ trait MutableTask implements Task, API_MutableTask {
     }
 
     @Override
+    void removeAttachment(Long id, API_User user, EventDispatchOption eventDispatchOption = EventDispatchOption.DO_NOT_DISPATCH) {
+        AttachmentManager attachmentManager = ComponentAccessor.attachmentManager
+        attachmentManager.deleteAttachment(attachmentManager.getAttachment(id))
+    }
+
+    @Override
     void addComment(String body, API_User user, EventDispatchOption eventDispatchOption = EventDispatchOption.DO_NOT_DISPATCH) {
         Boolean throwEventBoolean = eventDispatchOption == EventDispatchOption.UPDATE
         ComponentAccessor.getCommentManager().create(getIssue(), getApplicationUser(user), body, throwEventBoolean)
+    }
+
+    @Override
+    void removeComment(Long id, API_User user, EventDispatchOption eventDispatchOption) {
+        Boolean throwEventBoolean = eventDispatchOption == EventDispatchOption.UPDATE
+        CommentManager commentManager = ComponentAccessor.commentManager
+        commentManager.delete(commentManager.getCommentById(id), throwEventBoolean, user)
     }
 
     @Override
@@ -96,8 +156,57 @@ trait MutableTask implements Task, API_MutableTask {
         issueService.delete(getApplicationUser(user), validationResult)
     }
 
+    @Override
+    Jira_MutableIssue getIssue() {
+        return jiraIssue
+    }
+
+    private void updateAssignee(API_User assigneeUser, API_User user, EventDispatchOption eventDispatchOption) {
+        Jira_EventDispatchOption jira_eventDispatchOption = getJiraDispatchOption(eventDispatchOption)
+        jiraIssue.setAssignee(getApplicationUser(assigneeUser))
+        ComponentAccessor.getIssueManager().updateIssue(getApplicationUser(user), jiraIssue, jira_eventDispatchOption, false)
+    }
+
+    private void updateSummary(String summary, API_User user, EventDispatchOption eventDispatchOption) {
+        Jira_EventDispatchOption jira_eventDispatchOption = getJiraDispatchOption(eventDispatchOption)
+        jiraIssue.setSummary(summary)
+        ComponentAccessor.getIssueManager().updateIssue(getApplicationUser(user), jiraIssue, jira_eventDispatchOption, false)
+    }
+
+    private void updateDescription(String description, API_User user, EventDispatchOption eventDispatchOption) {
+        Jira_EventDispatchOption jira_eventDispatchOption = getJiraDispatchOption(eventDispatchOption)
+        jiraIssue.setDescription(description)
+        ComponentAccessor.getIssueManager().updateIssue(getApplicationUser(user), jiraIssue, jira_eventDispatchOption, false)
+    }
+
+    private void updateCreator(API_User creatorUser, API_User user, EventDispatchOption eventDispatchOption) {
+        Jira_EventDispatchOption jira_eventDispatchOption = getJiraDispatchOption(eventDispatchOption)
+        jiraIssue.setReporter(getApplicationUser(creatorUser))
+        ComponentAccessor.getIssueManager().updateIssue(getApplicationUser(user), jiraIssue, jira_eventDispatchOption, false)
+    }
+
+    private void updateCustomField(Long fieldId, Object value, API_User user, EventDispatchOption eventDispatchOption) {
+        CustomField field = fieldManager.getById(fieldId)
+        JIRA_CustomField jiraCustomField = field.getJiraField()
+        Jira_EventDispatchOption jira_eventDispatchOption = getJiraDispatchOption(eventDispatchOption)
+        switch (jiraCustomField.getCustomFieldType().getKey()) {
+            case fieldConstants.getSelectCustomFieldTypes():
+                FieldConfig fieldConfig = jiraCustomField.getRelevantConfig(jiraIssue)
+                value = ComponentAccessor.optionsManager.getOptions(fieldConfig)?.find { it.getOptionId() == value }
+                break
+        }
+        jiraIssue.setCustomFieldValue(jiraCustomField, value)
+        ComponentAccessor.getIssueManager().updateIssue(getApplicationUser(user), jiraIssue, jira_eventDispatchOption, false)
+    }
+
+    private Jira_EventDispatchOption getJiraDispatchOption(EventDispatchOption eventDispatchOption) {
+        return eventDispatchOption == EventDispatchOption.UPDATE
+                ? Jira_EventDispatchOption.ISSUE_UPDATED
+                : Jira_EventDispatchOption.DO_NOT_DISPATCH
+    }
+
     private ApplicationUser getApplicationUser(API_User user) {
-        return ((User)user).getUser()
+        return ((User)user)?.getUser()
     }
 }
 

@@ -2,27 +2,31 @@ package com.github.wwkarev.jirasharktask.core.project
 
 import com.github.wwkarev.sharktask.api.project.Project as API_Project
 
-import com.atlassian.jira.project.Project as Atl_Project
+import com.atlassian.jira.project.Project as JiRA_Project
 
 class Project implements API_Project {
-    private Atl_Project project
+    private JiRA_Project jiraProject
 
-    Project(Atl_Project project) {
-        this.project = project
+    Project(JiRA_Project jiraProject) {
+        this.jiraProject = jiraProject
     }
 
     @Override
     Long getId() {
-        project.getId()
+        jiraProject.getId()
     }
 
     @Override
     String getKey() {
-        project.getKey()
+        jiraProject.getKey()
     }
 
     @Override
     String getName() {
-        project.getName()
+        jiraProject.getName()
+    }
+
+    JiRA_Project getJiraProject() {
+        return jiraProject
     }
 }
